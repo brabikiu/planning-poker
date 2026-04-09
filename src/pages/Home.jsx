@@ -1,94 +1,107 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { db } from '../firebase'
+import { db, auth } from '../firebase'
 import { collection, addDoc, doc, getDoc } from 'firebase/firestore'
+import { signOut } from 'firebase/auth'
 
-function Home() {
-  const [name, setName] = useState('')
+function Home({ user }) {
   const [roomCode, setRoomCode] = useState('')
   const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
 
- async function createRoom() {
-  console.log('click!')
-  if (!name.trim()) return alert('Escribe tu nombre!')
-  setLoading(true)
-  try {
-    console.log('creando sala...')
-    const room = await addDoc(collection(db, 'rooms'), {
-      createdAt: Date.now(),
-      revealed: false,
-      story: '',
-      players: {}
-    })
-    console.log('sala creada:', room.id)
-    navigate(`/room/${room.id}?name=${name}`)
-  } catch (error) {
-    console.error('Error:', error)
-    alert('Error: ' + error.message)
+  async function createRoom() {
+    setLoading(true)
+    try {
+      const room = await addDoc(collection(db, 'rooms'), {
+        createdAt: Date.now(),
+        revealed: false,
+        story: '',
+        players: {},
+        createdBy: user.uid
+      })
+      navigate(`/room/${room.id}`)
+    } catch (e) {
+      alert('Error: ' + e.message)
+      setLoading(false)
+    }
   }
-}
 
   async function joinRoom() {
-    if (!name.trim()) return alert('Escribe tu nombre!')
     if (!roomCode.trim()) return alert('Escribe el código de sala!')
     setLoading(true)
-    const ref = doc(db, 'rooms', roomCode.trim())
-    const snap = await getDoc(ref)
-    if (!snap.exists()) {
-      alert('Sala no encontrada!')
+    try {
+      const ref = doc(db, 'rooms', roomCode.trim())
+      const snap = await getDoc(ref)
+      if (!snap.exists()) {
+        alert('Sala no encontrada!')
+        setLoading(false)
+        return
+      }
+      navigate(`/room/${roomCode.trim()}`)
+    } catch (e) {
+      alert('Error: ' + e.message)
       setLoading(false)
-      return
     }
-    navigate(`/room/${roomCode.trim()}?name=${name}`)
   }
 
   return (
-    <div style={{ maxWidth: 400, margin: '80px auto', padding: '0 1rem' }}>
-      <h1 style={{ fontSize: 24, fontWeight: 600, marginBottom: 8 }}>Planning Poker</h1>
-      <p style={{ color: '#666', marginBottom: 32 }}>Estimación ágil para tu equipo</p>
+    <div style={{ minHeight: '100vh', background: '#f7f5ff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ width: '100%', maxWidth: 400, padding: '0 1rem' }}>
 
-      <label style={{ fontSize: 13, fontWeight: 500 }}>Tu nombre</label>
-      <input
-        value={name}
-        onChange={e => setName(e.target.value)}
-        placeholder="Ej: Ana"
-        style={inputStyle}
-      />
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 32 }}>
+          <div>
+            <div style={{ fontSize: 22, fontWeight: 700, color: '#3d2f8f' }}>🃏 Planning Poker</div>
+            <div style={{ fontSize: 13, color: '#9b8ec4', marginTop: 2 }}>Hola, {user.displayName?.split(' ')[0]}!</div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <img src={user.photoURL} referrerPolicy="no-referrer" style={{ width: 36, height: 36, borderRadius: '50%', border: '2px solid #e0d9ff' }} />
+            <button onClick={() => signOut(auth)} style={{ fontSize: 12, color: '#9b8ec4', background: 'none', border: 'none', cursor: 'pointer' }}>
+              Salir
+            </button>
+          </div>
+        </div>
 
-      <button onClick={createRoom} disabled={loading} style={btnPrimary}>
-        {loading ? 'Creando...' : '+ Crear sala'}
-      </button>
+        <div style={{ background: '#fff', border: '1.5px solid #e0d9ff', borderRadius: 16, padding: '1.5rem', marginBottom: 12 }}>
+          <div style={{ fontSize: 13, color: '#9b8ec4', marginBottom: 12 }}>Nuevo sprint, nueva sesión</div>
+          <button onClick={createRoom} disabled={loading} style={btnPrimary}>
+            {loading ? 'Creando...' : '+ Crear sala nueva'}
+          </button>
+        </div>
 
-      <div style={{ textAlign: 'center', margin: '16px 0', color: '#999', fontSize: 13 }}>o únete a una existente</div>
+        <div style={{ background: '#fff', border: '1.5px solid #e0d9ff', borderRadius: 16, padding: '1.5rem' }}>
+          <div style={{ fontSize: 13, color: '#9b8ec4', marginBottom: 10 }}>Unirte a una sala existente</div>
+          <input
+            value={roomCode}
+            onChange={e => setRoomCode(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && joinRoom()}
+            placeholder="Código de sala..."
+            style={inputStyle}
+          />
+          <button onClick={joinRoom} disabled={loading} style={btnSecondary}>
+            Entrar
+          </button>
+        </div>
 
-      <input
-        value={roomCode}
-        onChange={e => setRoomCode(e.target.value)}
-        placeholder="Código de sala"
-        style={inputStyle}
-      />
-      <button onClick={joinRoom} disabled={loading} style={btnSecondary}>
-        Entrar a sala
-      </button>
+      </div>
     </div>
   )
 }
 
 const inputStyle = {
   display: 'block', width: '100%', padding: '10px 12px',
-  border: '1px solid #ddd', borderRadius: 8, fontSize: 14,
-  marginTop: 6, marginBottom: 16, boxSizing: 'border-box'
+  border: '1.5px solid #e0d9ff', borderRadius: 10, fontSize: 14,
+  marginBottom: 10, boxSizing: 'border-box', background: '#f7f5ff',
+  color: '#3d2f8f', outline: 'none', fontFamily: 'inherit'
 }
 const btnPrimary = {
-  width: '100%', padding: '11px', borderRadius: 8,
-  background: '#378ADD', color: '#fff', border: 'none',
-  fontSize: 14, fontWeight: 500, cursor: 'pointer'
+  width: '100%', padding: '12px', borderRadius: 10,
+  background: '#7F77DD', color: '#fff', border: 'none',
+  fontSize: 14, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit'
 }
 const btnSecondary = {
-  width: '100%', padding: '11px', borderRadius: 8,
-  background: '#fff', color: '#378ADD', border: '1px solid #378ADD',
-  fontSize: 14, fontWeight: 500, cursor: 'pointer'
+  width: '100%', padding: '11px', borderRadius: 10,
+  background: '#fff', color: '#7F77DD', border: '1.5px solid #7F77DD',
+  fontSize: 14, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit'
 }
 
 export default Home
